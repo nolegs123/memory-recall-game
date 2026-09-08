@@ -9,62 +9,85 @@ import os
 # EXPERIMENT SETTINGS
 # =========================
 
-WORD_LENGTH                  = 5
-WORDS_PER_RUN                = 20
-NUMBER_OF_RUNS               = 3
+WORD_LENGTH                 = 5
+WORDS_PER_RUN               = 20
+NUMBER_OF_RUNS              = 5
 
-SECONDS_PER_WORD             = 1.0
-MINIMUM_FREQUENCY            = 1
+SLOW_SECONDS_PER_WORD       = 3.0
+FAST_SECONDS_PER_WORD       = 1.0
 
-POST_SEQUENCE_DURATION       = 30
-MATH_MINIMUM_NUMBER          = 2
-MATH_MAXIMUM_NUMBER          = 19
+PAUSE_DURATION_SECONDS      = 30
+MATH_TASK_DURATION_SECONDS  = 30
 
-CSV_FILE                     = "memory_results.csv"
+MATH_MINIMUM_NUMBER         = 2
+MATH_MAXIMUM_NUMBER         = 19
+
+MINIMUM_FREQUENCY           = 1
+
+CSV_FILE                    = "memory_results.csv"
 
 
 # =========================
-# MENUS
+# EXPERIMENT MODES
 # =========================
 
-def select_recall_mode():
+MODES = {
+    "1": {
+        "name": "free_recall_slow",
+        "recall_type": "free_recall",
+        "seconds_per_word": SLOW_SECONDS_PER_WORD,
+        "post_sequence_task": "none"
+    },
+    "2": {
+        "name": "free_recall_fast",
+        "recall_type": "free_recall",
+        "seconds_per_word": FAST_SECONDS_PER_WORD,
+        "post_sequence_task": "none"
+    },
+    "3": {
+        "name": "free_recall_working_memory",
+        "recall_type": "free_recall",
+        "seconds_per_word": SLOW_SECONDS_PER_WORD,
+        "post_sequence_task": "multiplication"
+    },
+    "4": {
+        "name": "free_recall_pause",
+        "recall_type": "free_recall",
+        "seconds_per_word": SLOW_SECONDS_PER_WORD,
+        "post_sequence_task": "pause"
+    },
+    "5": {
+        "name": "serial_recall",
+        "recall_type": "serial_recall",
+        "seconds_per_word": SLOW_SECONDS_PER_WORD,
+        "post_sequence_task": "none"
+    }
+}
+
+
+# =========================
+# MENU
+# =========================
+
+def select_mode():
     while True:
-        print("\nRecall mode")
-        print("1. Free recall")
-        print("2. Serial recall")
-        print("3. Exit")
+        print("\nMemory Experiment")
+        print("=" * 40)
+
+        print("1. Free Recall - Slow")
+        print("2. Free Recall - Fast")
+        print("3. Free Recall - Working Memory Task")
+        print("4. Free Recall - Pause")
+        print("5. Serial Recall")
+        print("6. Exit")
 
         choice = input("\nChoice: ").strip()
 
-        if choice == "1":
-            return "free_recall"
-
-        if choice == "2":
-            return "serial_recall"
-
-        if choice == "3":
+        if choice == "6":
             return None
 
-        print("Invalid choice.")
-
-
-def select_post_sequence_condition():
-    while True:
-        print("\nPost-sequence condition")
-        print("1. Immediate recall")
-        print("2. Pause")
-        print("3. Multiplication task")
-
-        choice = input("\nChoice: ").strip()
-
-        if choice == "1":
-            return "immediate"
-
-        if choice == "2":
-            return "pause"
-
-        if choice == "3":
-            return "multiplication"
+        if choice in MODES:
+            return MODES[choice]
 
         print("Invalid choice.")
 
@@ -75,15 +98,21 @@ def select_post_sequence_condition():
 
 def get_available_words():
     pattern = "?" * WORD_LENGTH
+
     url = (
         f"https://api.datamuse.com/words"
         f"?sp={pattern}&md=f&max=1000"
     )
 
-    response = requests.get(url, timeout=10)
+    response = requests.get(
+        url,
+        timeout=10
+    )
+
     response.raise_for_status()
 
     data = response.json()
+
     available_words = []
 
     for item in data:
@@ -118,13 +147,23 @@ def get_next_run_number():
 
     highest_run = 0
 
-    with open(CSV_FILE, "r", newline="", encoding="utf-8") as file:
+    with open(
+        CSV_FILE,
+        "r",
+        newline="",
+        encoding="utf-8"
+    ) as file:
+
         reader = csv.DictReader(file)
 
         for row in reader:
             try:
                 run_number = int(row["run"])
-                highest_run = max(highest_run, run_number)
+
+                highest_run = max(
+                    highest_run,
+                    run_number
+                )
 
             except (ValueError, KeyError):
                 continue
@@ -133,7 +172,7 @@ def get_next_run_number():
 
 
 # =========================
-# WORD PRESENTATION
+# WORD SELECTION
 # =========================
 
 def select_words(available_words):
@@ -149,9 +188,23 @@ def select_words(available_words):
     )
 
 
-def present_words(words):
+# =========================
+# DISPLAY
+# =========================
+
+def clear_line():
+    print(
+        "\r" + " " * 60 + "\r",
+        end="",
+        flush=True
+    )
+
+
+def present_words(words, seconds_per_word):
     print("\nGet ready...")
-    time.sleep(1)
+    time.sleep(2)
+
+    clear_line()
 
     for word in words:
         print(
@@ -160,52 +213,35 @@ def present_words(words):
             flush=True
         )
 
-        time.sleep(SECONDS_PER_WORD)
+        time.sleep(seconds_per_word)
 
     clear_line()
 
 
-def clear_line():
-    print(
-        "\r" + " " * 50 + "\r",
-        end="",
-        flush=True
-    )
-
-
 # =========================
-# POST-SEQUENCE CONDITIONS
+# PAUSE CONDITION
 # =========================
-
-def run_post_sequence_condition(condition):
-    if condition == "immediate":
-        return 0, 0
-
-    if condition == "pause":
-        run_pause()
-        return 0, 0
-
-    if condition == "multiplication":
-        return run_multiplication_task()
-
-    return 0, 0
-
 
 def run_pause():
     print(
-        f"Please wait {POST_SEQUENCE_DURATION} seconds..."
+        f"\nWait {PAUSE_DURATION_SECONDS} seconds "
+        f"before recalling the words."
     )
 
-    time.sleep(POST_SEQUENCE_DURATION)
+    time.sleep(PAUSE_DURATION_SECONDS)
 
     clear_line()
 
+
+# =========================
+# WORKING MEMORY CONDITION
+# =========================
 
 def run_multiplication_task():
     print("\nAnswer the multiplication questions.")
     print(
-        f"The task lasts approximately "
-        f"{POST_SEQUENCE_DURATION} seconds.\n"
+        f"Continue for approximately "
+        f"{MATH_TASK_DURATION_SECONDS} seconds.\n"
     )
 
     correct_answers = 0
@@ -215,7 +251,7 @@ def run_multiplication_task():
 
     while (
         time.perf_counter() - start_time
-        < POST_SEQUENCE_DURATION
+        < MATH_TASK_DURATION_SECONDS
     ):
         first_number = random.randint(
             MATH_MINIMUM_NUMBER,
@@ -250,6 +286,25 @@ def run_multiplication_task():
 
 
 # =========================
+# POST-SEQUENCE TASK
+# =========================
+
+def run_post_sequence_task(task):
+    if task == "none":
+        return 0, 0
+
+    if task == "pause":
+        run_pause()
+
+        return 0, 0
+
+    if task == "multiplication":
+        return run_multiplication_task()
+
+    return 0, 0
+
+
+# =========================
 # FREE RECALL
 # =========================
 
@@ -257,17 +312,21 @@ def collect_free_recall():
     recalled_words = []
 
     print("\nEnter every word you remember.")
-    print("The order does not matter.")
-    print("Type 'exit' when you are finished.\n")
+    print("Order does not matter.")
+    print("Type 'exit' when finished.\n")
 
     while True:
-        recalled_word = input("Word: ").strip().lower()
+        recalled_word = input(
+            "Word: "
+        ).strip().lower()
 
         if recalled_word == "exit":
             break
 
         if recalled_word:
-            recalled_words.append(recalled_word)
+            recalled_words.append(
+                recalled_word
+            )
 
     return recalled_words
 
@@ -275,7 +334,10 @@ def collect_free_recall():
 def score_free_recall(words, recalled_words):
     results = []
 
-    for position, word in enumerate(words, start=1):
+    for position, word in enumerate(
+        words,
+        start=1
+    ):
         remembered = word in recalled_words
 
         recall_position = ""
@@ -286,11 +348,11 @@ def score_free_recall(words, recalled_words):
             )
 
         results.append({
-            "position":        position,
-            "word":            word,
-            "recalled_word":   "",
+            "position": position,
+            "word": word,
+            "recalled_word": "",
             "recall_position": recall_position,
-            "remembered":      remembered
+            "remembered": remembered
         })
 
     return results
@@ -306,59 +368,112 @@ def collect_serial_recall(number_of_words):
     print("\nEnter the words in the order shown.")
     print(
         "Press Enter if you cannot remember "
-        "a particular position.\n"
+        "a position.\n"
     )
 
-    for position in range(1, number_of_words + 1):
+    for position in range(
+        1,
+        number_of_words + 1
+    ):
         recalled_word = input(
             f"Position {position:>2}: "
         ).strip().lower()
 
-        recalled_words.append(recalled_word)
+        recalled_words.append(
+            recalled_word
+        )
 
     return recalled_words
 
 
-def score_serial_recall(words, recalled_words):
+def score_serial_recall(
+    words,
+    recalled_words
+):
     results = []
 
-    for position, word in enumerate(words, start=1):
-        recalled_word = recalled_words[position - 1]
+    for position, word in enumerate(
+        words,
+        start=1
+    ):
+        recalled_word = (
+            recalled_words[position - 1]
+        )
 
         remembered = (
             recalled_word == word
         )
 
         results.append({
-            "position":        position,
-            "word":            word,
-            "recalled_word":   recalled_word,
+            "position": position,
+            "word": word,
+            "recalled_word": recalled_word,
             "recall_position": position,
-            "remembered":      remembered
+            "remembered": remembered
         })
 
     return results
 
 
 # =========================
-# RESULTS
+# PRINT RESULTS
 # =========================
 
+def print_free_recall_results(results):
+    for result in results:
+        if result["remembered"]:
+            status = "Remembered"
+        else:
+            status = "Not remembered"
+
+        print(
+            f"{result['position']:>2}. "
+            f"{result['word']:<10} "
+            f"{status}"
+        )
+
+
+def print_serial_recall_results(results):
+    for result in results:
+        if result["recalled_word"]:
+            recalled_word = (
+                result["recalled_word"]
+            )
+        else:
+            recalled_word = "-"
+
+        if result["remembered"]:
+            status = "Correct"
+        else:
+            status = "Incorrect"
+
+        print(
+            f"{result['position']:>2}. "
+            f"Expected: {result['word']:<10} "
+            f"Recalled: {recalled_word:<10} "
+            f"{status}"
+        )
+
+
 def print_results(
-    recall_mode,
+    mode,
     run_number,
     results,
     math_correct,
     math_total
 ):
-    print(f"\nResults for run {run_number}")
+    print(f"\nResults for Run {run_number}")
     print("-" * 60)
 
-    if recall_mode == "free_recall":
-        print_free_recall_results(results)
+    if mode["recall_type"] == "free_recall":
+        print_free_recall_results(
+            results
+        )
 
-    elif recall_mode == "serial_recall":
-        print_serial_recall_results(results)
+    else:
+        print_serial_recall_results(
+            results
+        )
 
     remembered_count = sum(
         result["remembered"]
@@ -377,60 +492,37 @@ def print_results(
         )
 
 
-def print_free_recall_results(results):
-    for result in results:
-        if result["remembered"]:
-            status = "Remembered"
-        else:
-            status = "Not remembered"
-
-        print(
-            f"{result['position']:>2}. "
-            f"{result['word']:<10} "
-            f"{status}"
-        )
-
-
-def print_serial_recall_results(results):
-    for result in results:
-        recalled_word = (
-            result["recalled_word"]
-            if result["recalled_word"]
-            else "-"
-        )
-
-        if result["remembered"]:
-            status = "Correct"
-        else:
-            status = "Incorrect"
-
-        print(
-            f"{result['position']:>2}. "
-            f"Expected: {result['word']:<10} "
-            f"Recalled: {recalled_word:<10} "
-            f"{status}"
-        )
-
-
 # =========================
 # CSV
 # =========================
 
+def get_post_sequence_duration(task):
+    if task == "pause":
+        return PAUSE_DURATION_SECONDS
+
+    if task == "multiplication":
+        return MATH_TASK_DURATION_SECONDS
+
+    return 0
+
+
 def save_results(
     run_number,
-    recall_mode,
-    condition,
+    mode,
     results,
     math_correct,
     math_total
 ):
-    file_exists = os.path.exists(CSV_FILE)
+    file_exists = os.path.exists(
+        CSV_FILE
+    )
 
     fieldnames = [
         "run",
-        "recall_mode",
-        "condition",
+        "mode",
+        "recall_type",
         "seconds_per_word",
+        "post_sequence_task",
         "post_sequence_duration",
         "position",
         "word",
@@ -447,6 +539,7 @@ def save_results(
         newline="",
         encoding="utf-8"
     ) as file:
+
         writer = csv.DictWriter(
             file,
             fieldnames=fieldnames
@@ -460,17 +553,22 @@ def save_results(
                 "run":
                     run_number,
 
-                "recall_mode":
-                    recall_mode,
+                "mode":
+                    mode["name"],
 
-                "condition":
-                    condition,
+                "recall_type":
+                    mode["recall_type"],
 
                 "seconds_per_word":
-                    SECONDS_PER_WORD,
+                    mode["seconds_per_word"],
+
+                "post_sequence_task":
+                    mode["post_sequence_task"],
 
                 "post_sequence_duration":
-                    get_condition_duration(condition),
+                    get_post_sequence_duration(
+                        mode["post_sequence_task"]
+                    ),
 
                 "position":
                     result["position"],
@@ -495,36 +593,38 @@ def save_results(
             })
 
 
-def get_condition_duration(condition):
-    if condition in ["pause", "multiplication"]:
-        return POST_SEQUENCE_DURATION
-
-    return 0
-
-
 # =========================
 # SINGLE RUN
 # =========================
 
 def run_experiment(
     run_number,
-    recall_mode,
-    condition,
+    mode,
     available_words
 ):
     print(f"\nRun {run_number}")
-    print("-" * 30)
+    print(f"Mode: {mode['name']}")
+    print("-" * 40)
 
-    words = select_words(available_words)
-
-    present_words(words)
-
-    math_correct, math_total = (
-        run_post_sequence_condition(condition)
+    words = select_words(
+        available_words
     )
 
-    if recall_mode == "free_recall":
-        recalled_words = collect_free_recall()
+    present_words(
+        words,
+        mode["seconds_per_word"]
+    )
+
+    math_correct, math_total = (
+        run_post_sequence_task(
+            mode["post_sequence_task"]
+        )
+    )
+
+    if mode["recall_type"] == "free_recall":
+        recalled_words = (
+            collect_free_recall()
+        )
 
         results = score_free_recall(
             words,
@@ -532,8 +632,10 @@ def run_experiment(
         )
 
     else:
-        recalled_words = collect_serial_recall(
-            len(words)
+        recalled_words = (
+            collect_serial_recall(
+                len(words)
+            )
         )
 
         results = score_serial_recall(
@@ -542,7 +644,7 @@ def run_experiment(
         )
 
     print_results(
-        recall_mode,
+        mode,
         run_number,
         results,
         math_correct,
@@ -551,15 +653,15 @@ def run_experiment(
 
     save_results(
         run_number,
-        recall_mode,
-        condition,
+        mode,
         results,
         math_correct,
         math_total
     )
 
     print(
-        f"\nRun {run_number} saved to {CSV_FILE}."
+        f"\nRun {run_number} "
+        f"saved to {CSV_FILE}."
     )
 
 
@@ -568,7 +670,9 @@ def run_experiment(
 # =========================
 
 def main():
-    available_words = get_available_words()
+    available_words = (
+        get_available_words()
+    )
 
     print(
         f"Available word pool: "
@@ -576,24 +680,25 @@ def main():
     )
 
     while True:
-        recall_mode = select_recall_mode()
+        mode = select_mode()
 
-        if recall_mode is None:
+        if mode is None:
             break
 
-        condition = select_post_sequence_condition()
+        start_run = (
+            get_next_run_number()
+        )
 
-        start_run = get_next_run_number()
-
-        for run_offset in range(NUMBER_OF_RUNS):
+        for run_offset in range(
+            NUMBER_OF_RUNS
+        ):
             run_number = (
                 start_run + run_offset
             )
 
             run_experiment(
                 run_number,
-                recall_mode,
-                condition,
+                mode,
                 available_words
             )
 
