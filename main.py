@@ -200,10 +200,20 @@ def clear_line():
     )
 
 
-def present_words(words, seconds_per_word):
-    print("\nGet ready...")
-    time.sleep(2)
+def wait_for_run_start(run_number, first_run):
+    if first_run:
+        input(
+            f"\nPress Enter to start Run {run_number}..."
+        )
 
+    else:
+        input(
+            f"\nPress Enter to start the next run "
+            f"(Run {run_number})..."
+        )
+
+
+def present_words(words, seconds_per_word):
     clear_line()
 
     for word in words:
@@ -439,11 +449,13 @@ def print_serial_recall_results(results):
             recalled_word = (
                 result["recalled_word"]
             )
+
         else:
             recalled_word = "-"
 
         if result["remembered"]:
             status = "Correct"
+
         else:
             status = "Incorrect"
 
@@ -592,6 +604,10 @@ def save_results(
                     math_total
             })
 
+        # Force the results to be written to disk immediately
+        file.flush()
+        os.fsync(file.fileno())
+
 
 # =========================
 # SINGLE RUN
@@ -651,6 +667,7 @@ def run_experiment(
         math_total
     )
 
+    # Save immediately after this run is completed
     save_results(
         run_number,
         mode,
@@ -660,8 +677,7 @@ def run_experiment(
     )
 
     print(
-        f"\nRun {run_number} "
-        f"saved to {CSV_FILE}."
+        f"\nRun {run_number} saved to {CSV_FILE}."
     )
 
 
@@ -694,6 +710,11 @@ def main():
         ):
             run_number = (
                 start_run + run_offset
+            )
+
+            wait_for_run_start(
+                run_number,
+                run_offset == 0
             )
 
             run_experiment(
