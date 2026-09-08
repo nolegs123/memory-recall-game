@@ -141,7 +141,7 @@ def get_available_words():
 # RUN NUMBER
 # =========================
 
-def get_next_run_number():
+def get_next_run_number(mode):
     if not os.path.exists(CSV_FILE):
         return 1
 
@@ -158,6 +158,9 @@ def get_next_run_number():
 
         for row in reader:
             try:
+                if row["mode"] != mode["name"]:
+                    continue
+
                 run_number = int(row["run"])
 
                 highest_run = max(
@@ -200,10 +203,20 @@ def clear_line():
     )
 
 
-def present_words(words, seconds_per_word):
-    print("\nGet ready...")
-    time.sleep(2)
+def wait_for_run_start(run_number, first_run):
+    if first_run:
+        input(
+            f"\nPress Enter to start Run {run_number}..."
+        )
 
+    else:
+        input(
+            f"\nPress Enter to start the next run "
+            f"(Run {run_number})..."
+        )
+
+
+def present_words(words, seconds_per_word):
     clear_line()
 
     for word in words:
@@ -439,11 +452,13 @@ def print_serial_recall_results(results):
             recalled_word = (
                 result["recalled_word"]
             )
+
         else:
             recalled_word = "-"
 
         if result["remembered"]:
             status = "Correct"
+
         else:
             status = "Incorrect"
 
@@ -592,6 +607,9 @@ def save_results(
                     math_total
             })
 
+        file.flush()
+        os.fsync(file.fileno())
+
 
 # =========================
 # SINGLE RUN
@@ -686,7 +704,7 @@ def main():
             break
 
         start_run = (
-            get_next_run_number()
+            get_next_run_number(mode)
         )
 
         for run_offset in range(
@@ -694,6 +712,11 @@ def main():
         ):
             run_number = (
                 start_run + run_offset
+            )
+
+            wait_for_run_start(
+                run_number,
+                run_offset == 0
             )
 
             run_experiment(
