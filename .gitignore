@@ -1,2 +1,3 @@
 memory_results.csv
-
+__pycache__/
+*.pyc
