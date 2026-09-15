@@ -173,7 +173,7 @@ def get_available_words():
 # RUN NUMBER
 # =========================
 
-def get_next_run_number():
+def get_next_run_number(mode):
     if not os.path.exists(CSV_FILE):
         return 1
 
@@ -190,6 +190,9 @@ def get_next_run_number():
 
         for row in reader:
             try:
+                if row["mode"] != mode["name"]:
+                    continue
+
                 run_number = int(row["run"])
 
                 highest_run = max(
@@ -636,7 +639,6 @@ def save_results(
                     math_total
             })
 
-        # Force the results to be written to disk immediately
         file.flush()
         os.fsync(file.fileno())
 
@@ -699,7 +701,6 @@ def run_experiment(
         math_total
     )
 
-    # Save immediately after this run is completed
     save_results(
         run_number,
         mode,
@@ -709,7 +710,8 @@ def run_experiment(
     )
 
     print(
-        f"\nRun {run_number} saved to {CSV_FILE}."
+        f"\nRun {run_number} "
+        f"saved to {CSV_FILE}."
     )
 
 
@@ -734,7 +736,7 @@ def main():
             break
 
         start_run = (
-            get_next_run_number()
+            get_next_run_number(mode)
         )
 
         for run_offset in range(
