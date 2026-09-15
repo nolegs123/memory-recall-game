@@ -1,6 +1,5 @@
 import time
 import random
-import string
 import re
 import requests
 import csv
@@ -36,6 +35,11 @@ DANISH_FREQUENCY_LIST_URL = (
 DANISH_DICTIONARY_URL = (
     "https://raw.githubusercontent.com/n0kovo/danish-wordlists/"
     "main/ddo_fullforms.txt"
+)
+
+DANISH_SENTENCE_LIST_URL = (
+    "https://raw.githubusercontent.com/nolegs123/memory-recall-game/"
+    "main/danske_saetninger_1000.txt"
 )
 
 DANISH_WORD_PATTERN = re.compile(r"^[a-zæøå]+$")
@@ -77,7 +81,7 @@ MODES = {
         "post_sequence_task": "none"
     },
     "6": {
-        "name": "serial_recall_not_chunked",
+        "name": "serial_recall_chunking",
         "recall_type": "serial_recall",
         "seconds_per_word": SLOW_SECONDS_PER_WORD,
         "post_sequence_task": "none"
@@ -111,7 +115,7 @@ def select_mode():
         print("3. Free Recall - Working Memory Task")
         print("4. Free Recall - Pause")
         print("5. Serial Recall")
-        print("6. Serial Recall - Not Chunked")
+        print("6. Serial Recall - Chunking")
         print("7. Serial Recall - Articulatory Suppression")
         print("8. Serial Recall - Finger Tapping")
         print("9. Exit")
@@ -154,16 +158,6 @@ def get_danish_dictionary_words():
 
     return dictionary_words
 
-def get_random_letter_combination(word_length = 5, words_per_run = 20):
-    dictionary_words = set()
-    
-    for _ in range(words_per_run):
-        word = ''.join(random.choices(string.ascii_lowercase, k=word_length))
-        dictionary_words.add(word)
-
-    return dictionary_words
-
-
 def get_available_words():
     dictionary_words = get_danish_dictionary_words()
 
@@ -198,6 +192,29 @@ def get_available_words():
             available_words.append(word)
 
     return sorted(set(available_words))
+
+
+def get_available_sentences():
+    response = requests.get(
+        DANISH_SENTENCE_LIST_URL,
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    available_sentences = [
+        line.strip()
+        for line in response.text.splitlines()
+        if line.strip()
+    ]
+
+    if len(available_sentences) < WORDS_PER_RUN:
+        raise ValueError(
+            f"Only {len(available_sentences)} sentences are available, "
+            f"but {WORDS_PER_RUN} are required."
+        )
+
+    return available_sentences
 
 
 # =========================
@@ -260,7 +277,7 @@ def select_words(available_words):
 
 def clear_line():
     print(
-        "\r" + " " * 60 + "\r",
+        "\r" + " " * 200 + "\r",
         end="",
         flush=True
     )
@@ -283,8 +300,10 @@ def present_words(words, seconds_per_word):
     clear_line()
 
     for word in words:
+        clear_line()
+
         print(
-            f"\r{word:<30}",
+            f"\r{word}",
             end="",
             flush=True
         )
@@ -438,10 +457,14 @@ def score_free_recall(words, recalled_words):
 # SERIAL RECALL
 # =========================
 
-def collect_serial_recall(number_of_words):
+def collect_serial_recall(number_of_words, item_name="word"):
     recalled_words = []
 
-    print("\nEnter the words in the order shown.")
+    if item_name == "sentence":
+        print("\nEnter the sentences in the order shown.")
+    else:
+        print("\nEnter the words in the order shown.")
+
     print(
         "Press Enter if you cannot remember "
         "a position.\n"
@@ -681,15 +704,19 @@ def save_results(
 def run_experiment(
     run_number,
     mode,
-    available_words
+    available_words,
+    available_sentences=None
 ):
     print(f"\nRun {run_number}")
     print(f"Mode: {mode['name']}")
     print("-" * 40)
 
-    if mode["name"] == "serial_recall_not_chunked":
-        words = get_random_letter_combinations(
-            WORD_LENGTH,
+    if mode["name"] == "serial_recall_chunking":
+        if available_sentences is None:
+            available_sentences = get_available_sentences()
+
+        words = random.sample(
+            available_sentences,
             WORDS_PER_RUN
         )
     else:
@@ -719,9 +746,16 @@ def run_experiment(
         )
 
     else:
+        item_name = (
+            "sentence"
+            if mode["name"] == "serial_recall_chunking"
+            else "word"
+        )
+
         recalled_words = (
             collect_serial_recall(
-                len(words)
+                len(words),
+                item_name
             )
         )
 
@@ -776,6 +810,16 @@ def main():
             get_next_run_number(mode)
         )
 
+        available_sentences = None
+
+        if mode["name"] == "serial_recall_chunking":
+            available_sentences = get_available_sentences()
+
+            print(
+                f"Available sentence pool: "
+                f"{len(available_sentences)} sentences"
+            )
+
         for run_offset in range(
             NUMBER_OF_RUNS
         ):
@@ -791,7 +835,8 @@ def main():
             run_experiment(
                 run_number,
                 mode,
-                available_words
+                available_words,
+                available_sentences
             )
 
 
