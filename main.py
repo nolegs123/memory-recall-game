@@ -1,5 +1,6 @@
 import time
 import random
+import re
 import requests
 import csv
 import os
@@ -22,9 +23,21 @@ MATH_TASK_DURATION_SECONDS  = 30
 MATH_MINIMUM_NUMBER         = 2
 MATH_MAXIMUM_NUMBER         = 19
 
-MINIMUM_FREQUENCY           = 1
+MINIMUM_FREQUENCY           = 50  # raw occurrence count in the source corpus, not per-million
 
 CSV_FILE                    = "memory_results.csv"
+
+DANISH_FREQUENCY_LIST_URL = (
+    "https://raw.githubusercontent.com/hermitdave/FrequencyWords/"
+    "master/content/2018/da/da_50k.txt"
+)
+
+DANISH_DICTIONARY_URL = (
+    "https://raw.githubusercontent.com/n0kovo/danish-wordlists/"
+    "main/ddo_fullforms.txt"
+)
+
+DANISH_WORD_PATTERN = re.compile(r"^[a-zæøå]+$")
 
 
 # =========================
@@ -96,40 +109,59 @@ def select_mode():
 # WORD POOL
 # =========================
 
-def get_available_words():
-    pattern = "?" * WORD_LENGTH
-
-    url = (
-        f"https://api.datamuse.com/words"
-        f"?sp={pattern}&md=f&max=1000"
+def get_danish_dictionary_words():
+    response = requests.get(
+        DANISH_DICTIONARY_URL,
+        timeout=30
     )
 
+    response.raise_for_status()
+
+    dictionary_words = set()
+
+    for line in response.text.splitlines():
+        word = line.strip().lower()
+
+        if len(word) != WORD_LENGTH:
+            continue
+
+        if not DANISH_WORD_PATTERN.match(word):
+            continue
+
+        dictionary_words.add(word)
+
+    return dictionary_words
+
+
+def get_available_words():
+    dictionary_words = get_danish_dictionary_words()
+
     response = requests.get(
-        url,
+        DANISH_FREQUENCY_LIST_URL,
         timeout=10
     )
 
     response.raise_for_status()
 
-    data = response.json()
-
     available_words = []
 
-    for item in data:
-        word = item["word"].strip().lower()
+    for line in response.text.splitlines():
+        parts = line.strip().split()
+
+        if len(parts) != 2:
+            continue
+
+        word, count = parts
+
+        word = word.strip().lower()
 
         if len(word) != WORD_LENGTH:
             continue
 
-        if not word.isalpha():
+        if word not in dictionary_words:
             continue
 
-        frequency = 0
-
-        for tag in item.get("tags", []):
-            if tag.startswith("f:"):
-                frequency = float(tag[2:])
-                break
+        frequency = int(count)
 
         if frequency >= MINIMUM_FREQUENCY:
             available_words.append(word)
