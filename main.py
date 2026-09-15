@@ -11,7 +11,7 @@ import os
 # =========================
 
 WORD_LENGTH                 = 5
-WORDS_PER_RUN               = 20
+WORDS_PER_RUN               = 10
 NUMBER_OF_RUNS              = 5
 
 SLOW_SECONDS_PER_WORD       = 3.0
@@ -205,16 +205,25 @@ def get_available_sentences():
     available_sentences = [
         line.strip()
         for line in response.text.splitlines()
-        if line.strip()
+        if len(line.strip().split()) >= WORDS_PER_RUN
     ]
 
-    if len(available_sentences) < WORDS_PER_RUN:
+    if len(available_sentences) < 1:
         raise ValueError(
-            f"Only {len(available_sentences)} sentences are available, "
-            f"but {WORDS_PER_RUN} are required."
+            f"No sentences with at least {WORDS_PER_RUN} words "
+            f"are available."
         )
 
     return available_sentences
+
+
+def sentence_to_words(sentence, number_of_words):
+    tokens = sentence.split()[:number_of_words]
+
+    return [
+        re.sub(r"[^a-zæøå]", "", token.lower())
+        for token in tokens
+    ]
 
 
 # =========================
@@ -457,13 +466,10 @@ def score_free_recall(words, recalled_words):
 # SERIAL RECALL
 # =========================
 
-def collect_serial_recall(number_of_words, item_name="word"):
+def collect_serial_recall(number_of_words):
     recalled_words = []
 
-    if item_name == "sentence":
-        print("\nEnter the sentences in the order shown.")
-    else:
-        print("\nEnter the words in the order shown.")
+    print("\nEnter the words in the order shown.")
 
     print(
         "Press Enter if you cannot remember "
@@ -715,8 +721,10 @@ def run_experiment(
         if available_sentences is None:
             available_sentences = get_available_sentences()
 
-        words = random.sample(
-            available_sentences,
+        sentence = random.choice(available_sentences)
+
+        words = sentence_to_words(
+            sentence,
             WORDS_PER_RUN
         )
     else:
@@ -746,16 +754,9 @@ def run_experiment(
         )
 
     else:
-        item_name = (
-            "sentence"
-            if mode["name"] == "serial_recall_chunking"
-            else "word"
-        )
-
         recalled_words = (
             collect_serial_recall(
-                len(words),
-                item_name
+                len(words)
             )
         )
 
