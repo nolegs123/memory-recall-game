@@ -11,7 +11,7 @@ import os
 # EXPERIMENT SETTINGS
 # =========================
 
-WORD_LENGTH                 = 5
+WORD_LENGTH                 = 1
 WORDS_PER_RUN               = 20
 NUMBER_OF_RUNS              = 5
 
