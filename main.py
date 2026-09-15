@@ -1,5 +1,6 @@
 import time
 import random
+import string
 import re
 import requests
 import csv
@@ -11,7 +12,7 @@ import os
 # =========================
 
 WORD_LENGTH                 = 5
-WORDS_PER_RUN               = 15
+WORDS_PER_RUN               = 20
 NUMBER_OF_RUNS              = 5
 
 SLOW_SECONDS_PER_WORD       = 3.0
@@ -157,6 +158,26 @@ def get_danish_dictionary_words():
         dictionary_words.add(word)
 
     return dictionary_words
+
+def get_random_letter_combinations(word_length=5, words_per_run=20):
+    combinations = []
+    used = set()
+
+    while len(combinations) < words_per_run:
+        combination = "".join(
+            random.choices(
+                string.ascii_lowercase,
+                k=word_length
+            )
+        )
+
+        if combination in used:
+            continue
+
+        used.add(combination)
+        combinations.append(combination)
+
+    return combinations
 
 def get_available_words():
     dictionary_words = get_danish_dictionary_words()
@@ -720,8 +741,9 @@ def run_experiment(
             WORDS_PER_RUN
         )
     else:
-        words = select_words(
-            available_words
+        words = get_random_letter_combinations(
+            WORD_LENGTH,
+            WORDS_PER_RUN
         )
 
     present_words(
