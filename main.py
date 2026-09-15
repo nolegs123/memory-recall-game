@@ -11,7 +11,7 @@ import os
 # =========================
 
 WORD_LENGTH                 = 5
-WORDS_PER_RUN               = 20
+WORDS_PER_RUN               = 15
 NUMBER_OF_RUNS              = 5
 
 SLOW_SECONDS_PER_WORD       = 3.0
