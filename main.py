@@ -1,5 +1,6 @@
 import time
 import random
+import string
 import re
 import requests
 import csv
@@ -74,6 +75,24 @@ MODES = {
         "recall_type": "serial_recall",
         "seconds_per_word": SLOW_SECONDS_PER_WORD,
         "post_sequence_task": "none"
+    },
+    "6": {
+        "name": "serial_recall_not_chunked",
+        "recall_type": "serial_recall",
+        "seconds_per_word": SLOW_SECONDS_PER_WORD,
+        "post_sequence_task": "none"
+    },
+    "7": {
+        "name": "serial_recall_articulatory_suppresion",
+        "recall_type": "serial_recall",
+        "seconds_per_word": SLOW_SECONDS_PER_WORD,
+        "post_sequence_task": "none"
+    },
+    "8": {
+        "name": "serial_recall_finger_tapping",
+        "recall_type": "serial_recall",
+        "seconds_per_word": SLOW_SECONDS_PER_WORD,
+        "post_sequence_task": "none"
     }
 }
 
@@ -92,11 +111,14 @@ def select_mode():
         print("3. Free Recall - Working Memory Task")
         print("4. Free Recall - Pause")
         print("5. Serial Recall")
-        print("6. Exit")
+        print("6. Serial Recall - Not Chunked")
+        print("7. Serial Recall - Articulatory Suppression")
+        print("8. Serial Recall - Finger Tapping")
+        print("9. Exit")
 
         choice = input("\nChoice: ").strip()
 
-        if choice == "6":
+        if choice == "9":
             return None
 
         if choice in MODES:
@@ -128,6 +150,15 @@ def get_danish_dictionary_words():
         if not DANISH_WORD_PATTERN.match(word):
             continue
 
+        dictionary_words.add(word)
+
+    return dictionary_words
+
+def get_random_letter_combination(word_length = 5, words_per_run = 20):
+    dictionary_words = set()
+    
+    for _ in range(words_per_run):
+        word = ''.join(random.choices(string.ascii_lowercase, k=word_length))
         dictionary_words.add(word)
 
     return dictionary_words
@@ -656,9 +687,15 @@ def run_experiment(
     print(f"Mode: {mode['name']}")
     print("-" * 40)
 
-    words = select_words(
-        available_words
-    )
+    if mode["name"] == "serial_recall_not_chunked":
+        words = get_random_letter_combinations(
+            WORD_LENGTH,
+            WORDS_PER_RUN
+        )
+    else:
+        words = select_words(
+            available_words
+        )
 
     present_words(
         words,
