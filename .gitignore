@@ -1,4 +1,5 @@
 memory_results.csv
+main.py
 __pycache__/
 *.pyc
 ## Ignore Visual Studio temporary files, build results, and
