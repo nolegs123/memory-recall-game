@@ -1,0 +1,11 @@
+[project]
+name = "02464_Human_cog"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "requests",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "scipy>=1.18.1",
+]
