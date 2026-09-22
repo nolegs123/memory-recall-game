@@ -40,7 +40,7 @@ DANISH_DICTIONARY_URL = (
 
 DANISH_SENTENCE_LIST_URL = (
     "https://raw.githubusercontent.com/nolegs123/memory-recall-game/"
-    "main/danske_saetninger_1000.txt"
+    "main/memory_recall_game/danske_saetninger_1000.txt"
 )
 
 DANISH_WORD_PATTERN = re.compile(r"^[a-zæøå]+$")
