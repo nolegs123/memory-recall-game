@@ -1,19 +1,15 @@
-import os
 import sys
 import math
 import subprocess
 import importlib
 from pathlib import Path
 from datetime import datetime
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
 
 REQUIRED_PACKAGES = {
     "numpy": "numpy",
     "pandas": "pandas",
     "scipy": "scipy",
     "matplotlib": "matplotlib",
-    "PIL": "Pillow"
 }
 
 def ensure_packages():
@@ -38,7 +34,6 @@ from scipy import stats
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from PIL import Image, ImageTk
 
 
 ALPHA = 0.05
@@ -1767,257 +1762,84 @@ def analyze_files(paths):
     return output_dir, tests_df
 
 
-class MemoryAnalysisApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Memory Experiment Analysis")
-        self.root.geometry("950x680")
-        self.root.minsize(850, 600)
+def _clean_input_path(value):
+    return value.strip().strip('"').strip("'")
 
-        self.selected_files = []
-        self.last_output_dir = None
 
-        main = ttk.Frame(root, padding=16)
-        main.pack(fill="both", expand=True)
+def _collect_csv_paths_from_prompt():
+    print("Memory Experiment Analysis")
+    print("Enter one CSV path per line. Press Enter on an empty line when finished.\n")
 
-        title = ttk.Label(
-            main,
-            text="Memory Experiment Analysis",
-            font=("Segoe UI", 18, "bold")
-        )
-        title.pack(anchor="w")
+    paths = []
+    while True:
+        value = input(f"CSV file {len(paths) + 1}: ").strip()
+        if not value:
+            break
+        paths.append(_clean_input_path(value))
 
-        subtitle = ttk.Label(
-            main,
-            text=(
-                "Select one merged CSV, or select multiple original participant CSV files. "
-                "Selecting the original files separately lets the program use proper participant-level paired tests."
-            ),
-            wraplength=880
-        )
-        subtitle.pack(anchor="w", pady=(4, 14))
+    return paths
 
-        button_row = ttk.Frame(main)
-        button_row.pack(fill="x", pady=(0, 10))
 
-        ttk.Button(
-            button_row,
-            text="Select CSV file(s)",
-            command=self.select_files
-        ).pack(side="left")
+def _print_test_summary(tests_df):
+    print("\nHypothesis-test summary")
+    print("=" * 80)
 
-        self.analyze_button = ttk.Button(
-            button_row,
-            text="Analyze",
-            command=self.analyze,
-            state="disabled"
-        )
-        self.analyze_button.pack(side="left", padx=8)
+    for _, row in tests_df.iterrows():
+        print(row["analysis"])
+        print(f"  p = {format_p(row['p_value'])}")
+        print(f"  {row['decision']}")
 
-        self.open_button = ttk.Button(
-            button_row,
-            text="Open output folder",
-            command=self.open_output_folder,
-            state="disabled"
-        )
-        self.open_button.pack(side="left")
+        if pd.notna(row["estimate"]):
+            print(f"  Estimate = {row['estimate']:.3f}")
 
-        self.plots_button = ttk.Button(
-            button_row,
-            text="View plots",
-            command=self.view_plots,
-            state="disabled"
-        )
-        self.plots_button.pack(side="left", padx=8)
+        if pd.notna(row["ci95_low"]) and pd.notna(row["ci95_high"]):
+            print(f"  95% CI = [{row['ci95_low']:.3f}, {row['ci95_high']:.3f}]")
 
-        self.file_label = ttk.Label(
-            main,
-            text="No files selected.",
-            wraplength=880
-        )
-        self.file_label.pack(anchor="w", pady=(0, 12))
-
-        results_label = ttk.Label(
-            main,
-            text="Hypothesis-test summary",
-            font=("Segoe UI", 11, "bold")
-        )
-        results_label.pack(anchor="w")
-
-        text_frame = ttk.Frame(main)
-        text_frame.pack(fill="both", expand=True, pady=(6, 0))
-
-        self.results_text = tk.Text(
-            text_frame,
-            wrap="word",
-            font=("Consolas", 10)
-        )
-        self.results_text.pack(side="left", fill="both", expand=True)
-
-        scrollbar = ttk.Scrollbar(
-            text_frame,
-            orient="vertical",
-            command=self.results_text.yview
-        )
-        scrollbar.pack(side="right", fill="y")
-        self.results_text.configure(yscrollcommand=scrollbar.set)
-
-    def select_files(self):
-        paths = filedialog.askopenfilenames(
-            title="Select memory experiment CSV file(s)",
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
-        )
-
-        if not paths:
-            return
-
-        self.selected_files = list(paths)
-        self.analyze_button.configure(state="normal")
-
-        names = [Path(p).name for p in self.selected_files]
-        self.file_label.configure(
-            text="Selected: " + ", ".join(names)
-        )
-
-    def analyze(self):
-        if not self.selected_files:
-            return
-
-        self.analyze_button.configure(state="disabled")
-        self.results_text.delete("1.0", "end")
-        self.results_text.insert("end", "Analyzing data...\n")
-        self.root.update_idletasks()
-
-        try:
-            output_dir, tests_df = analyze_files(self.selected_files)
-            self.last_output_dir = output_dir
-            self.open_button.configure(state="normal")
-            self.plots_button.configure(state="normal")
-
-            self.results_text.delete("1.0", "end")
-            self.results_text.insert(
-                "end",
-                f"Analysis finished.\n\nOutput folder:\n{output_dir}\n\n"
-            )
-
-            for _, row in tests_df.iterrows():
-                self.results_text.insert(
-                    "end",
-                    f"{row['analysis']}\n"
-                    f"  p = {format_p(row['p_value'])}\n"
-                    f"  {row['decision']}\n"
-                )
-
-                if pd.notna(row["estimate"]):
-                    self.results_text.insert(
-                        "end",
-                        f"  Estimate = {row['estimate']:.3f}\n"
-                    )
-
-                if pd.notna(row["ci95_low"]) and pd.notna(row["ci95_high"]):
-                    self.results_text.insert(
-                        "end",
-                        f"  95% CI = [{row['ci95_low']:.3f}, {row['ci95_high']:.3f}]\n"
-                    )
-
-                self.results_text.insert("end", "\n")
-
-            messagebox.showinfo(
-                "Finished",
-                "Analysis complete. The program created the plots, hypothesis tests, confidence intervals, CSV summaries, and the text report. Click View plots to see the graphs inside the program."
-            )
-
-        except Exception as exc:
-            self.results_text.delete("1.0", "end")
-            self.results_text.insert("end", f"Error:\n{exc}")
-            messagebox.showerror("Analysis failed", str(exc))
-
-        finally:
-            self.analyze_button.configure(state="normal")
-
-    def view_plots(self):
-        if self.last_output_dir is None:
-            return
-
-        image_paths = sorted(self.last_output_dir.glob("*.png"))
-
-        if not image_paths:
-            messagebox.showinfo("Plots", "No plot files were found.")
-            return
-
-        window = tk.Toplevel(self.root)
-        window.title("Memory Experiment Plots")
-        window.geometry("1250x900")
-        window.minsize(1000, 720)
-
-        notebook = ttk.Notebook(window)
-        notebook.pack(fill="both", expand=True, padx=10, pady=10)
-
-        window._plot_images = []
-
-        for image_path in image_paths:
-            tab = ttk.Frame(notebook)
-            notebook.add(tab, text=image_path.stem.replace("_", " "))
-
-            container = ttk.Frame(tab, padding=10)
-            container.pack(fill="both", expand=True)
-
-            title = ttk.Label(
-                container,
-                text=image_path.stem.replace("_", " ").title(),
-                font=("Segoe UI", 12, "bold")
-            )
-            title.pack(pady=(0, 8))
-
-            pil_image = Image.open(image_path)
-
-            max_width = 1160
-            max_height = 730
-            pil_image.thumbnail((max_width, max_height), Image.LANCZOS)
-
-            photo = ImageTk.PhotoImage(pil_image)
-            window._plot_images.append(photo)
-
-            image_label = ttk.Label(container, image=photo)
-            image_label.pack(expand=True)
-
-            button = ttk.Button(
-                container,
-                text="Open full-size PNG",
-                command=lambda p=image_path: os.startfile(str(p))
-                if sys.platform.startswith("win")
-                else subprocess.Popen(
-                    ["open" if sys.platform == "darwin" else "xdg-open", str(p)]
-                )
-            )
-            button.pack(pady=(10, 4))
-
-            path_label = ttk.Label(
-                container,
-                text=str(image_path),
-                wraplength=1100
-            )
-            path_label.pack(pady=(4, 0))
-
-    def open_output_folder(self):
-        if self.last_output_dir is None:
-            return
-
-        path = str(self.last_output_dir)
-
-        if sys.platform.startswith("win"):
-            os.startfile(path)
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", path])
-        else:
-            subprocess.Popen(["xdg-open", path])
+        print()
 
 
 def main():
-    root = tk.Tk()
-    app = MemoryAnalysisApp(root)
-    root.mainloop()
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Analyze one merged memory-experiment CSV or multiple participant CSV files. "
+            "All results and plots are saved to a new output folder."
+        )
+    )
+    parser.add_argument(
+        "csv_files",
+        nargs="*",
+        help="CSV file(s) to analyze. If omitted, the program asks for paths interactively."
+    )
+    args = parser.parse_args()
+
+    paths = [_clean_input_path(p) for p in args.csv_files]
+    if not paths:
+        paths = _collect_csv_paths_from_prompt()
+
+    if not paths:
+        print("No CSV files supplied.")
+        return 1
+
+    missing = [p for p in paths if not Path(p).is_file()]
+    if missing:
+        print("\nThe following file(s) were not found:")
+        for path in missing:
+            print(f"  {path}")
+        return 1
+
+    try:
+        output_dir, tests_df = analyze_files(paths)
+    except Exception as exc:
+        print(f"\nAnalysis failed: {exc}")
+        return 1
+
+    _print_test_summary(tests_df)
+    print(f"Output folder: {output_dir}")
+    print("Created CSV summaries, hypothesis tests, confidence intervals, plots, and analysis_report.txt.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
