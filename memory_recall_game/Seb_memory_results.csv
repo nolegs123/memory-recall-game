@@ -1,4 +1,4 @@
-
+run,mode,recall_type,seconds_per_word,post_sequence_task,post_sequence_duration,position,word,recalled_word,recall_position,remembered,math_correct,math_total
 1,free_recall_slow,free_recall,3.0,none,0,1,x,,2,True,0,0
 1,free_recall_slow,free_recall,3.0,none,0,2,i,,3,True,0,0
 1,free_recall_slow,free_recall,3.0,none,0,3,d,,4,True,0,0
