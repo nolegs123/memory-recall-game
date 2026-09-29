@@ -1,14 +1,21 @@
+import argparse
 from pathlib import Path
-import tkinter as tk
-from tkinter import filedialog, messagebox
 
-import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 
-def find_csv() -> Path | None:
-    """Use a CSV next to the script if possible, otherwise ask the user to choose one."""
+def clean_path(value: str) -> str:
+    return value.strip().strip('"').strip("'")
+
+
+def find_csv(argument: str | None = None) -> Path | None:
+    if argument:
+        return Path(clean_path(argument))
+
     folder = Path(__file__).resolve().parent
 
     preferred = folder / "memory_results(1).csv"
@@ -17,16 +24,11 @@ def find_csv() -> Path | None:
 
     candidates = sorted(folder.glob("memory_results*.csv"))
     if candidates:
+        print(f"Using: {candidates[0]}")
         return candidates[0]
 
-    root = tk.Tk()
-    root.withdraw()
-    selected = filedialog.askopenfilename(
-        title="Choose memory results CSV",
-        filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-    )
-    root.destroy()
-    return Path(selected) if selected else None
+    entered = input("CSV file path: ").strip()
+    return Path(clean_path(entered)) if entered else None
 
 
 def load_and_summarize(path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -37,7 +39,6 @@ def load_and_summarize(path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     if missing:
         raise ValueError(f"Missing required column(s): {', '.join(sorted(missing))}")
 
-    # Accept True/False, 1/0, and common text forms.
     if df["remembered"].dtype != bool:
         normalized = df["remembered"].astype(str).str.strip().str.lower()
         df["remembered"] = normalized.map(
@@ -72,7 +73,6 @@ def load_and_summarize(path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
             )
         )
         summary["mode"] = "All runs"
-        group_col = "mode"
 
     summary["remembered_percent"] = (
         summary["remembered_count"] / summary["attempts"] * 100
@@ -89,7 +89,7 @@ def pretty_mode_name(mode: str) -> str:
     return names.get(str(mode), str(mode).replace("_", " ").title())
 
 
-def plot_counts(summary: pd.DataFrame, source_name: str) -> None:
+def plot_counts(summary: pd.DataFrame, source_name: str, output_path: Path) -> None:
     modes = list(summary["mode"].drop_duplicates())
     positions = sorted(summary["position"].drop_duplicates())
     x = np.arange(len(positions))
@@ -140,22 +140,40 @@ def plot_counts(summary: pd.DataFrame, source_name: str) -> None:
 
     fig.suptitle(source_name, fontsize=9, y=0.995)
     fig.tight_layout()
-    plt.show()
+    fig.savefig(output_path, dpi=220, bbox_inches="tight")
+    plt.close(fig)
 
 
-def main() -> None:
-    path = find_csv()
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Create a serial-position memory plot from a CSV file."
+    )
+    parser.add_argument(
+        "csv_file",
+        nargs="?",
+        help="CSV file to plot. If omitted, the program auto-detects one or asks for a path."
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        help="Output PNG path. Default: <csv name>_plot.png next to the CSV."
+    )
+    args = parser.parse_args()
+
+    path = find_csv(args.csv_file)
     if path is None:
-        return
+        print("No CSV file supplied.")
+        return 1
+
+    if not path.is_file():
+        print(f"File not found: {path}")
+        return 1
 
     try:
         _, summary = load_and_summarize(path)
     except Exception as exc:
-        root = tk.Tk()
-        root.withdraw()
-        messagebox.showerror("Could not plot file", str(exc))
-        root.destroy()
-        return
+        print(f"Could not plot file: {exc}")
+        return 1
 
     print("\nRemembered by position:\n")
     printable = summary.copy()
@@ -163,8 +181,17 @@ def main() -> None:
     printable["remembered_percent"] = printable["remembered_percent"].round(1)
     print(printable.to_string(index=False))
 
-    plot_counts(summary, path.name)
+    if args.output:
+        output_path = Path(clean_path(args.output))
+    else:
+        output_path = path.with_name(f"{path.stem}_plot.png")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plot_counts(summary, path.name, output_path)
+
+    print(f"\nPlot saved to: {output_path}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
