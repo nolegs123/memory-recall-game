@@ -621,7 +621,6 @@ def print_results(
 
 
 # =========================
-# CSV
 # =========================
 
 def get_post_sequence_duration(task):
