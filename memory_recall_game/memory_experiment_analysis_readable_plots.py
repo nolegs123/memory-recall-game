@@ -1,5 +1,6 @@
 import sys
 import math
+import csv
 import subprocess
 import importlib
 from pathlib import Path
@@ -96,11 +97,25 @@ def clean_bool(series):
     )
 
 
+def detect_csv_delimiter(path):
+    with open(path, "r", encoding="utf-8-sig", newline="") as f:
+        sample = f.read(8192)
+
+    try:
+        return csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
+    except csv.Error:
+        first_line = sample.splitlines()[0] if sample else ""
+        counts = {delimiter: first_line.count(delimiter) for delimiter in [",", ";", "\t", "|"]}
+        best = max(counts, key=counts.get)
+        return best if counts[best] > 0 else ","
+
+
 def load_csv_files(paths):
     frames = []
 
     for path in paths:
-        frame = pd.read_csv(path)
+        delimiter = detect_csv_delimiter(path)
+        frame = pd.read_csv(path, sep=delimiter, encoding="utf-8-sig")
 
         participant_col = find_participant_column(frame)
 
@@ -806,6 +821,107 @@ def plot_free_recall_serial_position(position_df, output_path):
 
     _save_figure(fig, output_path)
 
+
+
+def plot_serial_recall_serial_position(position_df, output_path):
+    subset = (
+        position_df[position_df["mode"] == "serial_recall"]
+        .sort_values("position")
+        .copy()
+    )
+
+    if subset.empty:
+        return
+
+    x = subset["position"].to_numpy()
+    y = subset["recall_probability"].to_numpy() * 100
+    low = subset["ci95_low"].to_numpy() * 100
+    high = subset["ci95_high"].to_numpy() * 100
+
+    lower_error = np.maximum(y - low, 0)
+    upper_error = np.maximum(high - y, 0)
+
+    fig, ax = plt.subplots(figsize=(11, 6.5))
+    ax.errorbar(
+        x,
+        y,
+        yerr=np.vstack([lower_error, upper_error]),
+        marker="o",
+        linewidth=2.4,
+        markersize=7,
+        capsize=5
+    )
+
+    ax.set_title(
+        "Serial recall rate by serial position",
+        fontsize=18,
+        fontweight="bold",
+        pad=16
+    )
+    ax.text(
+        0.5,
+        1.01,
+        "Baseline serial recall. Error bars are 95% Wilson confidence intervals.",
+        transform=ax.transAxes,
+        ha="center",
+        va="bottom",
+        fontsize=11
+    )
+
+    ax.set_xlabel("Position in the sequence", fontsize=12)
+    ax.set_ylabel("Correctly recalled (%)", fontsize=12)
+    ax.set_xticks(x)
+    ax.set_ylim(0, 100)
+    ax.set_yticks(range(0, 101, 20))
+    ax.grid(axis="y", alpha=0.22)
+
+    for xi, yi in zip(x, y):
+        ax.annotate(
+            f"{yi:.0f}%",
+            (xi, yi),
+            textcoords="offset points",
+            xytext=(0, 8),
+            ha="center",
+            fontsize=8
+        )
+
+    _save_figure(fig, output_path)
+
+
+def serial_recall_rate_table(position_df):
+    subset = (
+        position_df[position_df["mode"] == "serial_recall"]
+        .sort_values("position")
+        .copy()
+    )
+
+    if subset.empty:
+        return pd.DataFrame(
+            columns=[
+                "position",
+                "recall_rate",
+                "recall_percent",
+                "ci95_low",
+                "ci95_high",
+                "n_items"
+            ]
+        )
+
+    result = subset[
+        ["position", "recall_probability", "ci95_low", "ci95_high", "n_items"]
+    ].copy()
+    result = result.rename(columns={"recall_probability": "recall_rate"})
+    result["recall_percent"] = result["recall_rate"] * 100
+    return result[
+        [
+            "position",
+            "recall_rate",
+            "recall_percent",
+            "ci95_low",
+            "ci95_high",
+            "n_items"
+        ]
+    ]
 
 def _region_values(df):
     baseline = df[df["mode"] == "free_recall_slow"].copy()
@@ -1648,6 +1764,12 @@ def analyze_files(paths):
         index=False
     )
 
+    serial_rate = serial_recall_rate_table(serial_position)
+    serial_rate.to_csv(
+        output_dir / "serial_recall_rate_by_position.csv",
+        index=False
+    )
+
     if not free_position.empty:
         plot_free_recall_serial_position(
             free_position,
@@ -1750,6 +1872,12 @@ def analyze_files(paths):
         output_dir / "11_finger_tapping_equivalence.png"
     )
 
+    if not serial_rate.empty:
+        plot_serial_recall_serial_position(
+            serial_position,
+            output_dir / "12_serial_recall_rate_by_position.png"
+        )
+
     write_report(
         df,
         score_df,
@@ -1768,14 +1896,28 @@ def _clean_input_path(value):
 
 def _collect_csv_paths_from_prompt():
     print("Memory Experiment Analysis")
-    print("Enter one CSV path per line. Press Enter on an empty line when finished.\n")
+    print("Enter the path to your experiment CSV file(s), one per line.")
+    print("Do NOT enter the path to this .py program.")
+    print("Press Enter on an empty line when finished.\n")
 
     paths = []
     while True:
-        value = input(f"CSV file {len(paths) + 1}: ").strip()
+        value = input(f"Experiment CSV {len(paths) + 1}: ").strip()
         if not value:
             break
-        paths.append(_clean_input_path(value))
+
+        path_text = _clean_input_path(value)
+        path = Path(path_text)
+
+        if path.suffix.lower() != ".csv":
+            print("  Not a CSV file. Please enter a .csv experiment-data file, not the .py program.\n")
+            continue
+
+        if not path.is_file():
+            print(f"  File not found: {path_text}\n")
+            continue
+
+        paths.append(path_text)
 
     return paths
 
@@ -1822,6 +1964,14 @@ def main():
         print("No CSV files supplied.")
         return 1
 
+    wrong_type = [p for p in paths if Path(p).suffix.lower() != ".csv"]
+    if wrong_type:
+        print("\nThese are not CSV data files:")
+        for path in wrong_type:
+            print(f"  {path}")
+        print("\nUse the path to your experiment data, for example memory_results_merged.csv, not this .py program.")
+        return 1
+
     missing = [p for p in paths if not Path(p).is_file()]
     if missing:
         print("\nThe following file(s) were not found:")
@@ -1837,7 +1987,7 @@ def main():
 
     _print_test_summary(tests_df)
     print(f"Output folder: {output_dir}")
-    print("Created CSV summaries, hypothesis tests, confidence intervals, plots, and analysis_report.txt.")
+    print("Created CSV summaries, serial-recall rates by position, hypothesis tests, confidence intervals, plots, and analysis_report.txt.")
     return 0
 
 
