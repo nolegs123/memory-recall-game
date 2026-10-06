@@ -8,4 +8,5 @@ dependencies = [
     "numpy",
     "pandas",
     "scipy>=1.18.1",
+    "pyqt6>=6.11.0",
 ]
